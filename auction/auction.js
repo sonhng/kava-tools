@@ -39,7 +39,7 @@ class AuctionBot {
       throw new Error('must specify at least one valid auction type');
     }
     if (this.auctionTypes.includes('collateral')) {
-      console.debug('this bot will bid on collateral auctions');
+      console.log('this bot will bid on collateral auctions');
       if (!collaterals) {
         throw new Error('must specify at least one collateral type to bid on');
       }
@@ -105,7 +105,7 @@ class AuctionBot {
     try {
       await this.client.initChain();
     } catch (e) {
-      console.error(`Error: cannot connect to lcd server: ${e}`);
+      console.log(`Error: cannot connect to lcd server: ${e}`);
       return;
     }
     return this;
@@ -152,7 +152,7 @@ class AuctionBot {
       (cp) => cp.denom === denom
     );
     if (!collateralParam) {
-      console.error(
+      console.log(
         `attempt to fetch conversion factor for invalid collateral ${denom}`
       );
       return;
@@ -168,7 +168,7 @@ class AuctionBot {
   async getDebtConversionFactor(denom) {
     const params = await this.client.getParamsCDP();
     if (params.debt_param.denom !== denom) {
-      console.error(
+      console.log(
         `attempt to fetch conversion factor for invalid debt ${denom}`
       );
       return;
@@ -191,7 +191,7 @@ class AuctionBot {
       case 'surplus':
         return Number.parseFloat(params.increment_surplus);
       default:
-        console.error(
+        console.log(
           `couldn't fetch min bid increment for invalid auction type ${auctionType}`
         );
         return;
@@ -224,7 +224,7 @@ class AuctionBot {
       case 'reverse':
         return [maxBid, Math.floor(currentLot - currentLot * increment)];
       default:
-        console.error(
+        console.log(
           `attempt to calculate next bid and lot for invalid auction phase ${auction.phase}`
         );
         return;
@@ -268,7 +268,7 @@ class AuctionBot {
           auction.auction.value.max_bid.denom
         );
       default:
-        console.error(`invalid auction phase ${auction.phase}`);
+        console.log(`invalid auction phase ${auction.phase}`);
         return false;
     }
   }
@@ -281,18 +281,35 @@ class AuctionBot {
    * @returns {Promise<boolean>}
    */
   async checkBidMargin(auction, bidAmount, lotAmount) {
+    return true;
     const conversionFactorBid = await this.getDebtConversionFactor(
       auction.auction.value.base_auction.bid.denom
     );
     const conversionFactorLot = await this.getCollateralConversionFactor(
       auction.auction.value.base_auction.lot.denom
     );
-    const price = await prices.getPrice(
-      auction.auction.value.base_auction.lot.denom
-    );
+    let denom;
+    switch (auction.auction.value.base_auction.lot.denom) {
+      case 'btcb':
+        denom = 'btc';
+        break;
+      case 'ukava':
+        denom = 'kava';
+        break;
+      default:
+        denom = auction.auction.value.base_auction.lot.denom;
+        break;
+    }
+    const price = await prices.getPrice(denom);
     const bidValue = Math.max(bidAmount * 10 ** -conversionFactorBid, 0.001);
     const lotValue =
       price * (Number.parseInt(lotAmount) * 10 ** -conversionFactorLot);
+    console.log(price, bidValue, lotValue);
+    console.log('1 - bidValue / lotValue ', 1 - bidValue / lotValue);
+    console.log(
+      'Number.parseFloat(this.reverseBidMargin)',
+      Number.parseFloat(this.reverseBidMargin)
+    );
     switch (auction.phase) {
       case 'forward':
         if (
@@ -310,7 +327,7 @@ class AuctionBot {
           1 - bidValue / lotValue > Number.parseFloat(this.reverseBidMargin)
         );
       default:
-        console.error(`invalid auction phase ${auction.phase}`);
+        console.log(`invalid auction phase ${auction.phase}`);
         return false;
     }
   }
@@ -323,11 +340,11 @@ class AuctionBot {
     var i = 0;
     const auctions = await this.client.getAuctions();
     await utils.asyncForEach(auctions, async (auction) => {
-      console.debug(`checking if bot should bid on auction
+      console.log(`checking if bot should bid on auction
       ${JSON.stringify(auction, undefined, 2)}`);
       const id = auction.auction.value.base_auction.id;
       if (!this.checkAuctionParticipation(auction.type)) {
-        console.debug(
+        console.log(
           `auction ID ${id}: no bid: bot does not participate in ${auction.type} auctions`
         );
         return;
@@ -335,7 +352,7 @@ class AuctionBot {
       if (
         !this.checkCompetitiveAuction(auction.auction.value.base_auction.bidder)
       ) {
-        console.debug(
+        console.log(
           `auction ID ${id}: no bid: bot does not bid against ${auction.auction.value.base_auction.bidder}`
         );
         return;
@@ -360,27 +377,27 @@ class AuctionBot {
 
   async checkPlaceBidCollateral(auction, accountData, sequenceCounter) {
     const id = auction.auction.value.base_auction.id;
-    if (
-      !this.checkCollateralAuctionDenom(
-        auction.auction.value.base_auction.lot.denom
-      )
-    ) {
-      console.debug(
-        `auction ID ${id}: no bid: bot does not bid on ${auction.auction.value.base_auction.lot.denom} auctions`
-      );
-      return false;
-    }
+    // if (
+    //   !this.checkCollateralAuctionDenom(
+    //     auction.auction.value.base_auction.lot.denom
+    //   )
+    // ) {
+    //   console.log(
+    //     `auction ID ${id}: no bid: bot does not bid on ${auction.auction.value.base_auction.lot.denom} auctions`
+    //   );
+    //   return false;
+    // }
     const bidIncrement = await this.getMinBidIncrement(auction.type);
     const [nextBid, nextLot] = this.calculateNextBidAndLot(
       auction,
       bidIncrement
     );
     if (!(await this.checkSufficientFunds(auction, nextBid))) {
-      console.debug(`auction ID ${id}: no bid: insufficient funds`);
+      console.log(`auction ID ${id}: no bid: insufficient funds`);
       return false;
     }
     if (!(await this.checkBidMargin(auction, nextBid, nextLot))) {
-      console.debug(`auction ID ${id}: no bid: insufficient profit margin`);
+      console.log(`auction ID ${id}: no bid: insufficient profit margin`);
       return false;
     }
     const sequence = String(Number(accountData.sequence) + sequenceCounter);
@@ -410,7 +427,9 @@ class AuctionBot {
       );
       console.log(`transaction hash: ${txHash}`);
     } catch (e) {
-      console.log(`could not bid on auction ${auction.auction.value.base_auction.id}`);
+      console.log(
+        `could not bid on auction ${auction.auction.value.base_auction.id}`
+      );
       console.log(e);
       return false;
     }
@@ -424,6 +443,7 @@ class AuctionBot {
 
   async run() {
     cron.schedule(this.crontab, async () => {
+      console.log('checking');
       await this.checkForNewBids();
     });
   }
