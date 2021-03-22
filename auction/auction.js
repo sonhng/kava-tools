@@ -281,7 +281,7 @@ class AuctionBot {
    * @returns {Promise<boolean>}
    */
   async checkBidMargin(auction, bidAmount, lotAmount) {
-    return true;
+    // return true;
     const conversionFactorBid = await this.getDebtConversionFactor(
       auction.auction.value.base_auction.bid.denom
     );
