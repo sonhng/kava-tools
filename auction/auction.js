@@ -446,6 +446,16 @@ class AuctionBot {
       await this.checkForNewBids();
     });
   }
+
+  async query() {
+    // const accountData = await kava.tx.loadMetaData(
+    //   this.client.wallet.address,
+    //   this.client.baseURI
+    // );
+    // var i = 0;
+    const auctions = await this.client.getAuction(741);
+    console.log(auctions.auction.value);
+  }
 }
 
 module.exports.AuctionBot = AuctionBot;
