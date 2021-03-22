@@ -443,7 +443,6 @@ class AuctionBot {
 
   async run() {
     cron.schedule(this.crontab, async () => {
-      console.log('checking');
       await this.checkForNewBids();
     });
   }
